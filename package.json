@@ -1,0 +1,22 @@
+{
+  "name": "multi-tenant-saas-admin",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev -w server\" \"npm run dev -w web\"",
+    "dev:server": "npm run dev -w server",
+    "dev:web": "npm run dev -w web",
+    "build": "npm run build -w web",
+    "lint": "npm run lint -w server && npm run lint -w web",
+    "format": "prettier --write .",
+    "seed": "npm run seed -w server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "prettier": "^3.4.2"
+  }
+}

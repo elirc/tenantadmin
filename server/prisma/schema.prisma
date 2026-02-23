@@ -1,0 +1,164 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String          @id @default(cuid())
+  email           String          @unique
+  passwordHash    String?
+  name            String
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  memberships     Membership[]
+  sessions        Session[]
+  magicLinks      MagicLinkToken[]
+  auditLogs       AuditLog[]      @relation("AuditActor")
+  updatedSettings TenantSetting[] @relation("SettingUpdater")
+}
+
+model Tenant {
+  id         String          @id @default(cuid())
+  slug       String          @unique
+  name       String
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  memberships Membership[]
+  roles      Role[]
+  sessions   Session[]
+  magicLinks MagicLinkToken[]
+  auditLogs  AuditLog[]
+  settings   TenantSetting[]
+
+  @@index([slug])
+}
+
+model Membership {
+  id              String           @id @default(cuid())
+  userId          String
+  tenantId        String
+  status          String           @default("ACTIVE")
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  membershipRoles MembershipRole[]
+
+  @@unique([userId, tenantId])
+  @@index([tenantId, status])
+  @@index([userId])
+}
+
+model Role {
+  id              String           @id @default(cuid())
+  tenantId        String
+  name            String
+  description     String?
+  isSystem        Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rolePermissions RolePermission[]
+  membershipRoles MembershipRole[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+model Permission {
+  id              String           @id @default(cuid())
+  key             String           @unique
+  description     String
+  rolePermissions RolePermission[]
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+}
+
+model MembershipRole {
+  membershipId String
+  roleId       String
+  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([membershipId, roleId])
+  @@index([roleId])
+}
+
+model Session {
+  id         String    @id @default(cuid())
+  userId     String
+  tenantId   String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  auditLogs  AuditLog[] @relation("AuditSession")
+
+  @@index([tenantId, userId])
+  @@index([expiresAt, revokedAt])
+}
+
+model MagicLinkToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tenantId  String
+  tokenHash String    @unique
+  expiresAt DateTime
+  consumedAt DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([userId, tenantId, expiresAt])
+}
+
+model AuditLog {
+  id             String    @id @default(cuid())
+  tenantId       String
+  actorUserId    String?
+  actorSessionId String?
+  action         String
+  resourceType   String
+  resourceId     String?
+  metadata       String?
+  createdAt      DateTime  @default(now())
+  tenant         Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  actorUser      User?     @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  actorSession   Session?  @relation("AuditSession", fields: [actorSessionId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, action])
+  @@index([tenantId, resourceType])
+}
+
+model TenantSetting {
+  id              String    @id @default(cuid())
+  tenantId        String
+  key             String
+  value           String
+  updatedByUserId String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  updatedByUser   User?     @relation("SettingUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, key])
+  @@index([tenantId])
+}
